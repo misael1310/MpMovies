@@ -1,23 +1,52 @@
-import { createApi, fetchBaseQuery } from '@reduxjs/toolkit/query/react';
+import { createApi } from "@reduxjs/toolkit/query/react";
 import {
   Trending,
   TMDBTrendingResponse,
   fetchTrendsArgs,
-} from './TrendingTypes';
-import { FetchBaseQueryError } from '@reduxjs/toolkit/query/react';
+} from "./TrendingTypes";
+import { baseQuery, fetchMultiplePages, FetchWithBQType } from "../RTK_Utils";
 
-const baseUrl = import.meta.env.VITE_THEMOVIEDB_API_URL as string;
-const accessToken = import.meta.env.VITE_THEMOVIEDB_ACCESS_TOKEN as string;
+interface fetchCategoryArgs extends fetchTrendsArgs {
+  endpoint: string;
+  with_genres: string;
+}
+
+export interface Movie {
+  adult: boolean;
+  backdrop_path: string;
+  genre_ids: number[];
+  id: number;
+  original_language: string;
+  original_title: string;
+  overview: string;
+  popularity: number;
+  poster_path: string;
+  release_date: Date;
+  title: string;
+  video: boolean;
+  vote_average: number;
+  vote_count: number;
+}
+
+export interface TvSeries {
+  backdrop_path: null | string;
+  first_air_date: Date;
+  genre_ids: number[];
+  id: number;
+  name: string;
+  origin_country: string[];
+  original_language: string;
+  original_name: string;
+  overview: string;
+  popularity: number;
+  poster_path: string;
+  vote_average: number;
+  vote_count: number;
+}
 
 export const trendingApi = createApi({
-  reducerPath: 'trendingApi',
-  baseQuery: fetchBaseQuery({
-    baseUrl,
-    prepareHeaders: (headers) => {
-      if (accessToken) headers.set('Authorization', `Bearer ${accessToken}`);
-      return headers;
-    },
-  }),
+  reducerPath: "trendingApi",
+  baseQuery,
   endpoints: (builder) => ({
     fetchTrends: builder.query<TMDBTrendingResponse, fetchTrendsArgs>({
       async queryFn(
@@ -26,58 +55,63 @@ export const trendingApi = createApi({
         _extraOptions,
         fetchWithBQ,
       ) {
-        try {
-          const currentPage = fromPage - 1;
+        const endpoint = "trending/all/week";
+        const params = { language: "en-US" };
 
-          const fetchRequests = Array.from(
-            { length: totalPages },
-            (_, index) => {
-              console.log({ page: currentPage + index + 1, currentPage });
-              return fetchWithBQ({
-                url: 'trending/all/week',
-                params: { language: 'en-US', page: currentPage + index + 1 },
-              });
-            },
-          );
+        const result = await fetchMultiplePages<Trending>(
+          fetchWithBQ as FetchWithBQType,
+          endpoint,
+          fromPage,
+          totalPages,
+          params,
+        );
 
-          const responses = await Promise.allSettled(fetchRequests);
-
-          const successfulResults: Trending[] = [];
-          for (const response of responses) {
-            if (response.status === 'fulfilled' && response.value.data) {
-              successfulResults.push(
-                ...(response.value.data as TMDBTrendingResponse).results,
-              );
-            }
-          }
-
-          if (successfulResults.length === 0) {
-            return {
-              error: {
-                status: 500,
-                data: 'All API requests failed',
-              } as FetchBaseQueryError,
-            };
-          }
-
-          return {
-            data: {
-              nextPage: totalPages + 1,
-              results: successfulResults.slice(0, 160),
-              total_pages: totalPages,
-            },
-          };
-        } catch (error) {
-          return {
-            error: {
-              status: 500,
-              data: (error as Error).message || 'Unknown error',
-            } as FetchBaseQueryError,
-          };
+        if ("error" in result) {
+          return { error: result.error };
         }
+
+        return {
+          data: {
+            nextPage: totalPages + 1,
+            results: result.results.slice(0, 160),
+            total_pages: totalPages,
+          },
+        };
+      },
+    }),
+    fetchMovieCategories: builder.query<
+      TMDBTrendingResponse,
+      fetchCategoryArgs
+    >({
+      async queryFn(
+        { endpoint, fromPage, totalPages, with_genres },
+        _api,
+        _extraOptions,
+        fetchWithBQ,
+      ) {
+        const params = { language: "en-US", with_genres };
+        const result = await fetchMultiplePages<Trending>(
+          fetchWithBQ as FetchWithBQType,
+          endpoint,
+          fromPage,
+          totalPages,
+          params,
+        );
+        if ("error" in result) {
+          return { error: result.error };
+        }
+
+        return {
+          data: {
+            nextPage: totalPages + 1,
+            results: result.results.slice(0, 160),
+            total_pages: totalPages,
+          },
+        };
       },
     }),
   }),
 });
 
-export const { useFetchTrendsQuery } = trendingApi;
+export const { useFetchTrendsQuery, useLazyFetchMovieCategoriesQuery } =
+  trendingApi;
