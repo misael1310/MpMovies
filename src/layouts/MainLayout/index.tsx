@@ -1,14 +1,10 @@
-import { JSX } from "react";
+import { Outlet } from "react-router";
 
-type Props = {
-  children: string | JSX.Element | JSX.Element[];
-};
-
-function MainLayout({ children }: Props) {
+function MainLayout() {
   return (
     <div className="w-screen h-screen flex justify-center items-center">
       <div className="w-full max-w-screen h-full aspect-[16/9] overflow-hidden bg-gray-900 flex">
-        {children}
+        <Outlet />
       </div>
     </div>
   );
